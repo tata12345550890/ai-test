@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Crack Detection AI</title>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 40px; }
+    input, button { margin: 10px; }
+    canvas { margin-top: 20px; border: 1px solid #ccc; }
+    pre { text-align: left; max-width: 800px; margin: 20px auto; background: #f9f9f9; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Upload Image for Crack Detection</h2>
+  <input type="file" id="imageInput" accept="image/*" />
+  <button onclick="uploadImage()">Analyze</button>
+  <div id="result">No image uploaded.</div>
+  <canvas id="canvas"></canvas>
+  <pre id="jsonOutput"></pre>
+
+  <script>
+    const API_KEY = "Ao2SRjCDmSKganFBnK3u";
+    const MODEL_URL = "https://detect.roboflow.com/crack-detection-gpbys-8zuzz/1";
+    const visibleCanvas = document.getElementById("canvas");
+    const visibleCtx = visibleCanvas.getContext("2d");
+
+    function uploadImage() {
+      const input = document.getElementById("imageInput");
+      const file = input.files[0];
+      if (!file) return alert("Please choose an image.");
+
+      const img = new Image();
+      img.onload = () => {
+        // Resize to 640x640 using hidden canvas
+        const resizedCanvas = document.createElement("canvas");
+        resizedCanvas.width = 640;
+        resizedCanvas.height = 640;
+        const resizedCtx = resizedCanvas.getContext("2d");
+        resizedCtx.drawImage(img, 0, 0, 640, 640);
+
+        // Display resized image
+        visibleCanvas.width = 640;
+        visibleCanvas.height = 640;
+        visibleCtx.drawImage(img, 0, 0, 640, 640);
+
+        // Convert to blob and send
+        resizedCanvas.toBlob(blob => {
+          const formData = new FormData();
+          formData.append("file", blob, "resized.jpg");
+
+          fetch(`${MODEL_URL}?api_key=${API_KEY}`, {
+            method: "POST",
+            body: formData
+          })
+          .then(res => res.json())
+          .then(data => {
+            document.getElementById("result").innerText = "Prediction complete.";
+            document.getElementById("jsonOutput").innerText = JSON.stringify(data, null, 2);
+            drawBoxes(data.predictions);
+          })
+          .catch(err => {
+            console.error(err);
+            document.getElementById("result").innerText = "Error during prediction.";
+          });
+        }, "image/jpeg");
+      };
+
+      img.src = URL.createObjectURL(file);
+    }
+
+    function drawBoxes(predictions) {
+      visibleCtx.lineWidth = 2;
+      visibleCtx.font = "16px Arial";
+      predictions.forEach(pred => {
+        const { x, y, width, height, class: label, confidence } = pred;
+        const left = x - width / 2;
+        const top = y - height / 2;
+
+        visibleCtx.strokeStyle = "#FF0000";
+        visibleCtx.strokeRect(left, top, width, height);
+        visibleCtx.fillStyle = "rgba(255, 0, 0, 0.6)";
+        visibleCtx.fillText(`${label} (${(confidence * 100).toFixed(1)}%)`, left, top - 5);
+      });
+    }
+  </script>
+</body>
+</html>
